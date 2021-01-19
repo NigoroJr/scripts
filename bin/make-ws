@@ -1,0 +1,10 @@
+#!/bin/bash
+
+mkdir -p bin config data launch maps media/images media/videos rviz ws/src
+touch README.md
+cat <<EOF > launch/sample.launch
+<?xml version="1.0"?>
+<launch>
+  <arg name="prefix" default="$( pwd | sed -e "s#$HOME#\$(env HOME)#"  )" />
+</launch>
+EOF

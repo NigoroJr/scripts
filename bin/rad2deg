@@ -1,0 +1,5 @@
+#!/bin/bash
+
+SCRIPT_DIR="$( cd $( dirname "$( realpath "${BASH_SOURCE[0]}" )" ) && pwd )"
+
+exec $SCRIPT_DIR/deg2rad -r $@

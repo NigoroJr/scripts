@@ -1,0 +1,162 @@
+#!/usr/bin/env python
+
+import argparse
+import fnmatch
+import glob
+import os
+import subprocess
+import zipfile
+
+
+class Worker(object):
+    def __init__(self, ws_dpath, src_host=None, dst_host=None, remote_prefix=None):
+        self._skip_patterns = [
+            "*/ws/build/*",
+            "*/ws/devel/*",
+            "*/ws/logs/*",
+            "*/cmake-build-*",
+        ]
+
+        local_dpath = Worker._get_real_path_(ws_dpath)
+        remote_dpath = Worker._get_remote_ws_dpath_(remote_prefix, local_dpath)
+
+        self._ws_dpath = local_dpath
+        self._rsync_src = None
+        self._rsync_dst = None
+
+        # Source and destination for rsync
+        if src_host is None and dst_host is not None:
+            # Local -> remote
+            self._rsync_src = local_dpath
+            self._rsync_dst = dst_host + ":" + os.path.dirname(remote_dpath)
+        elif dst_host is None and src_host is not None:
+            # Remote -> local
+            self._rsync_src = src_host + ":" + os.path.dirname(remote_dpath)
+            self._rsync_dst = local_dpath
+
+    def rsync(self):
+        if self._rsync_src is None or self._rsync_dst is None:
+            raise ValueError("src and/or dst not set")
+
+        exclude = ["--exclude={}".format(pattern) for pattern in self._skip_patterns]
+
+        print("SRC : {}\nDST : {}".format(self._rsync_src, self._rsync_dst))
+
+        cmd = ["rsync", "-auv"] + exclude + [self._rsync_src, self._rsync_dst]
+        p = subprocess.Popen(cmd)
+        p.communicate()
+        return p.returncode
+
+    def make_zip(self, out_fpath=None):
+        if out_fpath is None:
+            out_fpath = os.path.basename(self._ws_dpath) + ".zip"
+
+        with zipfile.ZipFile(
+            out_fpath,
+            mode="w",
+            compression=zipfile.ZIP_DEFLATED,
+            allowZip64=True,
+        ) as out_zip_fh:
+            for root, dnames, fnames in os.walk(self._ws_dpath):
+                for fname in fnames:
+                    # Local file path
+                    local_fpath = os.path.join(root, fname)
+                    # Relative file path in the zip file
+                    zip_fpath = os.path.relpath(
+                        os.path.join(root, fname),
+                        start=os.path.join(self._ws_dpath, ".."),
+                    )
+
+                    # Skip unnecessary files
+                    if self._skip_(zip_fpath):
+                        continue
+
+                    print(zip_fpath)
+                    # Maintain directory structure
+                    out_zip_fh.write(local_fpath, zip_fpath)
+
+    def _skip_(self, fpath):
+        for pattern in self._skip_patterns:
+            if fnmatch.fnmatch(fpath, pattern):
+                return True
+        return False
+
+    @staticmethod
+    def _get_remote_ws_dpath_(remote_prefix, local_ws_dpath):
+        if remote_prefix is not None:
+            ws_dname = os.path.basename(local_ws_dpath)
+            return os.path.join(remote_prefix, ws_dname)
+
+        home_dpath = os.getenv("HOME") + os.path.sep
+        local_ws_realpath = os.path.realpath(local_ws_dpath)
+        # Remote ws dpath relative to HOME
+        remote_ws_dpath = local_ws_realpath.replace(home_dpath, "")
+        return remote_ws_dpath
+
+    @staticmethod
+    def _get_real_path_(path):
+        if os.path.exists(path):
+            return os.path.realpath(path)
+
+        # Should only match one path
+        paths = glob.glob(path)
+        if len(paths) == 0:
+            raise FileNotFoundError("No matching path for {}".format(path))
+        elif len(paths) > 1:
+            raise ValueError(
+                "Multiple matching paths for {} : {}".format(path, ", ".join(paths))
+            )
+        return os.path.realpath(paths[0])
+
+
+def parse_args():
+    description = "transfer / zip a workspace"
+    # fmt: off
+    parser = argparse.ArgumentParser(
+        description=description,
+        add_help=False,
+    )
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="show this help message and exit",
+    )
+    src_or_dst = parser.add_mutually_exclusive_group()
+    src_or_dst.add_argument(
+        "-s", "--src",
+        help="user@hostname of the source (for receiving)",
+    )
+    src_or_dst.add_argument(
+        "-d", "--dst",
+        help="user@hostname of the destination (for sending)",
+    )
+    parser.add_argument(
+        "--remote-prefix",
+        help="workspace prefix in the remote host",
+    )
+    parser.add_argument(
+        "-z", "--zip",
+        help="only zip the workspace",
+    )
+    parser.add_argument(
+        "ws_dpath",
+        help="workspace to transfer",
+    )
+    # fmt: on
+
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    args = parse_args()
+    worker = Worker(args.ws_dpath, args.src, args.dst, args.remote_prefix)
+
+    if args.zip:
+        worker.make_zip()
+    else:
+        print(worker.rsync())
+
+
+if __name__ == "__main__":
+    main()

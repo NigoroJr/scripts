@@ -1,0 +1,38 @@
+#!/bin/sh
+
+S='tm-ros'
+
+if [ -z "$( tmux list-sessions | grep "$S" )" ]; then
+    tmux new-session -d -s $S -n 'main'
+
+    tmux new-window -t $S:1 -n 'control'
+
+    tmux split-window -h -d
+    tmux select-pane -R
+    tmux split-window -h -d
+    tmux select-pane -R
+
+    # Right-most column
+    tmux split-window -v -d
+    tmux split-window -v -d
+    tmux select-pane -D
+    tmux select-pane -D
+    tmux split-window -v -d
+    tmux select-pane -U
+    tmux select-pane -U
+    tmux select-pane -L
+
+    # Middle column
+    tmux split-window -v -d
+    tmux split-window -v -d
+    tmux select-pane -D
+    tmux select-pane -D
+    tmux split-window -v -d
+    tmux select-pane -U
+    tmux select-pane -U
+    tmux select-pane -L
+
+    tmux select-window -t $S:0
+fi
+
+tmux attach -t $S

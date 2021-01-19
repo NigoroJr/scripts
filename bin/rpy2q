@@ -1,0 +1,135 @@
+#!/usr/bin/env python
+
+import tf.transformations as tft
+
+import numpy as np
+
+import sys
+import argparse
+
+def parse_args():
+    description = 'Convert roll, pitch, yaw to quaternion'
+    parser = argparse.ArgumentParser(description=description,
+                                     add_help=False)
+    parser.add_argument('-h', '--help', action='help',
+                        help='show this help message and exit')
+    parser.add_argument('roll',
+                        type=float,
+                        help='Roll (deg)')
+    parser.add_argument('pitch',
+                        type=float,
+                        help='Pitch (deg)')
+    parser.add_argument('yaw',
+                        type=float,
+                        help='Yaw (deg)')
+
+    # Format of printing
+    print_format = parser.add_mutually_exclusive_group()
+    print_format.add_argument('-q', '--quiet',
+                              dest='quiet',
+                              action='store_true',
+                              help='Do not print to stdout')
+    print_format.add_argument('--cpp',
+                              dest='cpp',
+                              action='store',
+                              nargs='?',
+                              const='q',
+                              metavar='VAR_NAME',
+                              help='Print the result in C++ code')
+    print_format.add_argument('--python',
+                              dest='python',
+                              action='store',
+                              nargs='?',
+                              const='q',
+                              metavar='VAR_NAME',
+                              help='Print the result in Python code')
+    print_format.add_argument('--oneline',
+                              dest='oneline',
+                              default=False,
+                              action='store_true',
+                              help='Print the result in one line, space-separated')
+
+    parser.add_argument('--publish',
+                        dest='topic',
+                        type=str,
+                        action='store',
+                        nargs='?',
+                        const='pose',
+                        metavar='TOPIC',
+                        help='Publishes the given RPY as a geometry_msgs/PoseStamped')
+    parser.add_argument('--frame',
+                        dest='frame',
+                        default='world',
+                        type=str,
+                        action='store',
+                        nargs='?',
+                        metavar='FRAME',
+                        help='Frame to be used for the PoseStamped')
+    parser.add_argument('--order',
+                        default='rxyz',
+                        type=str,
+                        help='Order in which to apply the rotations')
+    parser.add_argument('--offset',
+                        dest='offset',
+                        type=float,
+                        nargs=3,
+                        default=(0, 0, 0),
+                        metavar=tuple('XYZ'),
+                        help='Linear offset to be used when publishing PoseStamped')
+    args = parser.parse_args()
+    return args
+
+
+def print_quaternion(q, args):
+    if args.quiet:
+        pass
+    elif args.oneline:
+        print(' '.join(q))
+    elif args.cpp is not None:
+        lines = ['{}.{} = {};'.format(args.cpp, attr, val)
+                 for attr, val in zip(list('xyzw'), q)]
+        print('\n'.join(lines))
+    elif args.python is not None:
+        lines = ['{}.{} = {}'.format(args.python, attr, val)
+                 for attr, val in zip(list('xyzw'), q)]
+        print('\n'.join(lines))
+    else:
+        lines = ['{}: {:6.3}'.format(attr, val) for attr, val in zip(list('xyzw'), q)]
+        print('\n'.join(lines))
+
+
+def main():
+    args = parse_args()
+
+    rpy_deg = [args.roll, args.pitch, args.yaw]
+    rpy_rad = np.radians(rpy_deg)
+    q = tft.quaternion_from_euler(*rpy_rad, axes=args.order)
+
+    # Print to stdout
+    print_quaternion(q, args)
+
+    if args.topic is not None:
+        import rospy
+        from geometry_msgs.msg import PoseStamped
+        rospy.init_node('rpy2q', anonymous=True)
+
+        ps = PoseStamped()
+        ps.header.stamp = rospy.Time.now()
+        ps.header.frame_id = args.frame
+        ps.pose.position.x = args.offset[0]
+        ps.pose.position.y = args.offset[1]
+        ps.pose.position.z = args.offset[2]
+        ps.pose.orientation.x = q[0]
+        ps.pose.orientation.y = q[1]
+        ps.pose.orientation.z = q[2]
+        ps.pose.orientation.w = q[3]
+        pub = rospy.Publisher(args.topic, PoseStamped, queue_size=1, latch=True)
+        pub.publish(ps)
+
+        print('Published PoseStamped to {}'.format(args.topic))
+
+        rospy.spin()
+
+
+if __name__ == '__main__':
+    main()

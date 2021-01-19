@@ -1,0 +1,18 @@
+#!/bin/bash
+
+while true; do
+    declare -a removed_dirs
+    declare -a empty_dirs=( $( find . -type d -empty ) )
+    if (( ${#empty_dirs} == 0 )); then
+        break
+    fi
+    rmdir ${empty_dirs[@]}
+    removed_dirs+=( ${empty_dirs[@]} )
+done
+
+if (( ${#removed_dirs} > 0 )); then
+    echo "Removed the following directories:"
+    for removed_dir in $( printf '%s\n' "${removed_dirs[@]}" | sort ); do
+        echo "  $removed_dir"
+    done
+fi

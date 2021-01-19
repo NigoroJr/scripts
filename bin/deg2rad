@@ -1,0 +1,71 @@
+#!/usr/bin/env python
+
+import numpy as np
+
+import argparse
+
+
+def parse_args():
+    description = "degrees to radians"
+    parser = argparse.ArgumentParser(
+        description=description,
+        add_help=False,
+    )
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="show this help message and exit",
+    )
+    parser.add_argument(
+        "-r", "--reverse",
+        action="store_true",
+        help="rad -> deg"
+    )
+    parser.add_argument(
+        "-q", "--quiet",
+        action="store_true",
+        help="less verbose output"
+    )
+    parser.add_argument(
+        "-l", "--limit",
+        action="store_true",
+        help="limit the values to [0, 2 * pi]"
+    )
+    parser.add_argument(
+        "angles",
+        type=float,
+        nargs="+",
+        help="angles"
+    )
+
+    args = parser.parse_args()
+    return args
+
+def main():
+    args = parse_args()
+
+    angles = np.array(args.angles)
+
+    if args.reverse:
+        # rad -> deg
+        if args.limit:
+            angles = angles % np.pi
+        converted = np.degrees(angles)
+        units = ("rad", "deg")
+    else:
+        # deg -> rad
+        if args.limit:
+            angles = angles % 360
+        converted = np.radians(angles)
+        units = ("deg", "rad")
+
+    for orig, val in zip(args.angles, converted):
+        if args.quiet:
+            print(val)
+        else:
+            fmt = "{:5f} {} -> {} {}"
+            print(fmt.format(orig, units[0], val, units[1]))
+
+
+if __name__ == "__main__":
+    main()

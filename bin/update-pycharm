@@ -1,0 +1,81 @@
+#!/bin/bash
+
+KEEP_TAR='false'
+TAR_FILE=''
+VERSION='latest'
+
+while getopts 'hkt:v:' flag; do
+    case "$flag" in
+        k)
+            KEEP_TAR='true'
+            ;;
+        t)
+            TAR_FILE="$OPTARG"
+            ;;
+        v)
+            VERSION="$OPTARG"
+            ;;
+        h)
+            echo "Usage: $0 [-h] [-k] [-t tar file path]"
+            echo "  -k	Keep the downloaded tar file"
+            echo "  -t	Use an already downloaded tar file"
+            exit 0
+    esac
+
+done
+shift $(( $OPTIND - 1 ))
+
+DEST_DIR="${1:-$HOME/usr/share/pycharm}"
+
+download_in_temp() {
+    local version="$1"
+    local tar_dir="$( mktemp -d )"
+    local url='https://data.services.jetbrains.com/products/download?code=PCP&platform=linux' 
+
+    if [[ $version != latest ]]; then
+        url="https://download.jetbrains.com/python/pycharm-professional-${version}.tar.gz"
+    fi
+
+    builtin cd "$tar_dir"
+    curl -L $url -o pycharm.tar.gz
+    echo "$tar_dir/pycharm.tar.gz"
+}
+
+extract_and_replace() {
+    local tar_file="$1"
+    local dest_dir="$2"
+    local latest_version_dir
+
+    builtin cd "$( dirname $dest_dir )"
+
+    if [[ -s $dest_dir ]]; then
+        rm -rf $dest_dir
+    elif [[ -d $dest_dir ]]; then
+        read -p "$dest_dir exists. Remove? [Y/n] " ans
+        if [[ $ans == 'n' ]]; then
+            echo "Renaming to ${dest_dir}_old"
+            mv $dest_dir  ${dest_dir}_old
+        else
+            rm -rf $dest_dir
+        fi
+    fi
+
+    echo 'Unpacking tar file'
+    tar xzf "$tar_file"
+    latest_version_dir="$( find . -maxdepth 1 -name 'pycharm-*' -type d | sort -r | head -n 1 )"
+    ln -sf "$latest_version_dir" ./pycharm
+
+    if $KEEP_TAR; then
+        echo "Saved tar file at $tar_file"
+    else
+        echo 'Removing tar file'
+        rm -rf $tar_file
+    fi
+}
+
+if [[ -z $TAR_FILE ]]; then
+    echo "Downloading PyCharm: $VERSION"
+    TAR_FILE="$( download_in_temp $VERSION )"
+fi
+
+extract_and_replace "$TAR_FILE" "$DEST_DIR"

@@ -1,0 +1,11 @@
+#!/bin/sh
+
+S='tm-ros'
+
+if [ -z "$( tmux list-sessions | grep "$S" )" ]; then
+    tmux new-session -d -s $S
+
+    tmux select-window -t $S:0
+fi
+
+tmux attach -t $S

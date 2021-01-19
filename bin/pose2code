@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+
+import rospy
+import roslib.message
+from geometry_msgs.msg import PoseStamped
+
+import argparse
+
+def parse_args():
+    description = 'Subscribe to a Pose and print C++ or Python code for it'
+    parser = argparse.ArgumentParser(description=description,
+                                     add_help=False)
+    parser.add_argument('-h', '--help', action='help',
+                        help='show this help message and exit')
+    parser.add_argument('-s', '--stamped',
+                        action='store_true',
+                        help='Print PoseStamped')
+    parser.add_argument('-t', '--topic',
+                        default='/pose',
+                        help='Topic to subscribe to')
+    parser.add_argument('var',
+                        help='Variable name')
+
+    # Format of printing
+    print_format = parser.add_mutually_exclusive_group()
+    print_format.add_argument('--cpp',
+                              action='store_true',
+                              help='Print the result in C++ code')
+    print_format.add_argument('--python',
+                              action='store_true',
+                              help='Print the result in Python code')
+
+    args = parser.parse_args()
+    return args
+
+
+def getattr_recursive(obj, attrs):
+    val = obj
+    for attr in attrs.split('.'):
+        val = getattr(val, attr)
+    return val
+
+
+def print_pose(pose, args):
+    if isinstance(pose, PoseStamped):
+        pose = pose.pose
+
+    attrs = [
+        'position.x',
+        'position.y',
+        'position.z',
+        'orientation.x',
+        'orientation.y',
+        'orientation.z',
+        'orientation.w',
+    ]
+
+    for attr in attrs:
+        value = getattr_recursive(pose, attr)
+
+        if args.stamped:
+            attr = 'pose.' + attr
+
+        line = '{var}.{attr} = {value}'.format(
+            var=args.var, attr=attr, value=value,
+        )
+        if args.python:
+            pass
+        elif args.cpp:
+            line += ';'
+        print(line)
+
+
+def main():
+    args = parse_args()
+
+    rospy.init_node('pose2code', anonymous=True)
+
+    available_topics = rospy.get_published_topics()
+    info = [t for t in available_topics if t[0] == args.topic]
+    if len(info) == 0 or len(info) > 1:
+        msg_type = 'geometry_msgs/'
+        msg_type += 'PoseStamped' if args.stamped else 'Pose'
+    else:
+        msg_type = info[0][1]
+
+    cls = roslib.message.get_message_class(msg_type)
+
+    fmt = 'Waiting for a {} message on {}...'
+    print(fmt.format(msg_type, args.topic))
+
+    try:
+        pose = rospy.wait_for_message(args.topic, cls)
+        print_pose(pose, args)
+    except rospy.exceptions.ROSInterruptException:
+        print('Bye!')
+
+
+if __name__ == '__main__':
+    main()
