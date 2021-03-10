@@ -31,8 +31,8 @@ class Worker(object):
             self._rsync_dst = dst_host + ":" + os.path.dirname(remote_dpath)
         elif dst_host is None and src_host is not None:
             # Remote -> local
-            self._rsync_src = src_host + ":" + os.path.dirname(remote_dpath)
-            self._rsync_dst = local_dpath
+            self._rsync_src = src_host + ":" + remote_dpath
+            self._rsync_dst = os.path.dirname(local_dpath)
 
     def rsync(self):
         if self._rsync_src is None or self._rsync_dst is None:
