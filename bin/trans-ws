@@ -17,7 +17,9 @@ class Worker(object):
             "*/cmake-build-*",
         ]
 
-        local_dpath = Worker._get_real_path_(ws_dpath)
+        # If local -> remote, require the wd_dpath to exist
+        require_exists = src_host is None and dst_host is not None
+        local_dpath = Worker._get_real_path_(ws_dpath, require_exists)
         remote_dpath = Worker._get_remote_ws_dpath_(remote_prefix, local_dpath)
 
         self._ws_dpath = local_dpath
@@ -34,7 +36,7 @@ class Worker(object):
             self._rsync_src = src_host + ":" + remote_dpath
             self._rsync_dst = os.path.dirname(local_dpath)
 
-    def rsync(self):
+    def rsync(self, delete=False):
         if self._rsync_src is None or self._rsync_dst is None:
             raise ValueError("src and/or dst not set")
 
@@ -42,7 +44,22 @@ class Worker(object):
 
         print("SRC : {}\nDST : {}".format(self._rsync_src, self._rsync_dst))
 
-        cmd = ["rsync", "-auv"] + exclude + [self._rsync_src, self._rsync_dst]
+        cmd = ["rsync", "-auv"]
+        cmd += exclude
+        cmd += [self._rsync_src, self._rsync_dst]
+
+        if delete:
+            cmd += ["--delete"]
+            # First, run a dry-run
+            print("You specified --delete, which may result in catastrophic deletion.")
+            print("Dry-running and showing the files to be deleted.")
+            p = subprocess.Popen(cmd + ["--dry-run", "--info=DEL"])
+            p.communicate()
+            print("OK to execute? (y/N) ", end="")
+            answer = input().strip().lower()
+            if answer == "" or answer.startswith("n"):
+                return -1
+
         p = subprocess.Popen(cmd)
         p.communicate()
         return p.returncode
@@ -94,14 +111,16 @@ class Worker(object):
         return remote_ws_dpath
 
     @staticmethod
-    def _get_real_path_(path):
+    def _get_real_path_(path, require_exists=True):
         if os.path.exists(path):
             return os.path.realpath(path)
 
         # Should only match one path
         paths = glob.glob(path)
         if len(paths) == 0:
-            raise FileNotFoundError("No matching path for {}".format(path))
+            if require_exists:
+                raise FileNotFoundError("No matching path for {}".format(path))
+            return os.path.realpath(path)
         elif len(paths) > 1:
             raise ValueError(
                 "Multiple matching paths for {} : {}".format(path, ", ".join(paths))
@@ -139,6 +158,11 @@ def parse_args():
         help="only zip the workspace",
     )
     parser.add_argument(
+        "--delete",
+        action="store_true",
+        help="add --delete option for rsync (BE CAREFUL!)",
+    )
+    parser.add_argument(
         "ws_dpath",
         help="workspace to transfer",
     )
@@ -155,7 +179,7 @@ def main():
     if args.zip:
         worker.make_zip()
     else:
-        print(worker.rsync())
+        worker.rsync(delete=args.delete)
 
 
 if __name__ == "__main__":
