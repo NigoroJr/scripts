@@ -52,9 +52,16 @@ class Worker(object):
             cmd += ["--delete"]
             # First, run a dry-run
             print("You specified --delete, which may result in catastrophic deletion.")
-            print("Dry-running and showing the files to be deleted.")
-            p = subprocess.Popen(cmd + ["--dry-run", "--info=DEL"])
-            p.communicate()
+            print("Dry-running to show which files will be deleted.")
+            p = subprocess.Popen(cmd + ["--dry-run"], stdout=subprocess.PIPE)
+            stdout, stderr = p.communicate()
+            copies_count = 0
+            for line in str(stdout).split("\\n"):
+                if line.startswith("deleting "):
+                    print("  {}".format(line))
+                else:
+                    copies_count += 1
+            print("Total number of copies : {}".format(copies_count))
             print("OK to execute? (y/N) ", end="")
             answer = input().strip().lower()
             if answer == "" or answer.startswith("n"):
