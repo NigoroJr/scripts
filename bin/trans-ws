@@ -14,7 +14,9 @@ class Worker(object):
             "*/ws/build/*",
             "*/ws/devel/*",
             "*/ws/logs/*",
+            "*/ws/.catkin_tools/*",
             "*/cmake-build-*",
+            "*/__pycache__/*",
         ]
 
         # If local -> remote, require the wd_dpath to exist
