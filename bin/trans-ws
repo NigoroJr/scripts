@@ -13,7 +13,9 @@ class Worker(object):
         "*/ws/build/*",
         "*/ws/devel/*",
         "*/ws/logs/*",
+        "*/ws/.catkin_tools/*",
         "*/cmake-build-*",
+        "*/__pycache__/*",
     ]
 
     def __init__(
