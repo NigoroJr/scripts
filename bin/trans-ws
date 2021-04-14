@@ -9,13 +9,22 @@ import zipfile
 
 
 class Worker(object):
-    def __init__(self, ws_dpath, src_host=None, dst_host=None, remote_prefix=None):
-        self._skip_patterns = [
-            "*/ws/build/*",
-            "*/ws/devel/*",
-            "*/ws/logs/*",
-            "*/cmake-build-*",
-        ]
+    DEFAULT_SKIP_PATTERNS = [
+        "*/ws/build/*",
+        "*/ws/devel/*",
+        "*/ws/logs/*",
+        "*/cmake-build-*",
+    ]
+
+    def __init__(
+        self,
+        ws_dpath,
+        src_host=None,
+        dst_host=None,
+        remote_prefix=None,
+        skip_patterns=[],
+    ):
+        self._skip_patterns = Worker.DEFAULT_SKIP_PATTERNS + skip_patterns
 
         # If local -> remote, require the wd_dpath to exist
         require_exists = src_host is None and dst_host is not None
@@ -157,6 +166,11 @@ def parse_args():
         help="user@hostname of the destination (for sending)",
     )
     parser.add_argument(
+        "--skip",
+        nargs="+",
+        help="patterns to skip",
+    )
+    parser.add_argument(
         "--remote-prefix",
         help="workspace prefix in the remote host",
     )
@@ -182,7 +196,13 @@ def parse_args():
 
 def main():
     args = parse_args()
-    worker = Worker(args.ws_dpath, args.src, args.dst, args.remote_prefix)
+    worker = Worker(
+        args.ws_dpath,
+        args.src,
+        args.dst,
+        args.remote_prefix,
+        skip_patterns=args.skip,
+    )
 
     if args.zip:
         worker.make_zip()
