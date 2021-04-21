@@ -24,8 +24,10 @@ class Worker(object):
         src_host=None,
         dst_host=None,
         remote_prefix=None,
-        skip_patterns=[],
+        skip_patterns=None,
     ):
+        if skip_patterns is None:
+            skip_patterns = []
         self._skip_patterns = Worker.DEFAULT_SKIP_PATTERNS + skip_patterns
 
         # If local -> remote, require the wd_dpath to exist
